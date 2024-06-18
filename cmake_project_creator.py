@@ -2,7 +2,7 @@ import os
 import argparse
 import subprocess
 
-def create_cmake_project(project_path, project_name, cpp_standard, enable_asan):
+def create_cmake_project(project_path, project_name, cpp_standard, add_benchmark, enable_asan):
     # Expand the user home directory symbol (~) to the full path
     project_path = os.path.expanduser(project_path)
     project_dir = os.path.join(project_path)
@@ -11,11 +11,15 @@ def create_cmake_project(project_path, project_name, cpp_standard, enable_asan):
     include_dir = os.path.join(project_dir, "include")
     src_dir = os.path.join(project_dir, "src")
     tests_dir = os.path.join(project_dir, "tests")
+    benchmarks_dir = os.path.join(project_dir, "benchmarks")
 
     # Create directories
     os.makedirs(include_dir, exist_ok=True)
     os.makedirs(src_dir, exist_ok=True)
     os.makedirs(tests_dir, exist_ok=True)
+    if add_benchmark:
+        os.makedirs(benchmarks_dir, exist_ok=True)
+
 
     # Create hello.h in include directory
     hello_h_content = """
@@ -51,20 +55,61 @@ int main(int argc, char* argv [])
 #include <gtest/gtest.h>
 #include "hello.h"
 
-TEST(HelloTest, BasicAssertions) {
+TEST(HelloTest, BasicAssertions)
+{
     // Expect two strings not to be equal.
     EXPECT_STRNE("hello", "world");
     // Expect equality.
     EXPECT_EQ(7 * 6, 42);
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
     """
     with open(os.path.join(tests_dir, "test.cpp"), "w") as file:
         file.write(test_cpp_content)
+
+    if add_benchmark:
+        benchmark_cpp_content = """
+#include <benchmark/benchmark.h>
+#include <vector>
+#include <algorithm>
+
+// Example function to benchmark
+void ExampleFunction(std::vector<int>& data)
+{
+    std::sort(data.begin(), data.end());
+}
+
+// Benchmark for the example function
+static void BM_ExampleFunction(benchmark::State& state)
+{
+    // Setup code
+    std::vector<int> data(state.range(0));
+    std::generate(data.begin(), data.end(), std::rand);
+
+    // Run the benchmark
+    for(auto _ : state)
+    {
+        // We need to make a copy of the data for each iteration
+        std::vector<int> data_copy = data;
+        ExampleFunction(data_copy);
+    }
+
+    // Set the items processed per iteration
+    state.SetItemsProcessed(state.iterations() * state.range(0));
+}
+
+// Register the function as a benchmark
+BENCHMARK(BM_ExampleFunction)->Range(8, 8<<10);
+
+BENCHMARK_MAIN();
+        """
+        with open(os.path.join(benchmarks_dir, "benchmark.cpp"), "w") as file:
+            file.write(benchmark_cpp_content)
 
     # Create CMakeLists.txt in the root directory
     cmake_lists_content = f"""
@@ -109,7 +154,8 @@ target_link_libraries(
 
 include(GoogleTest)
 gtest_discover_tests(test_{project_name})
-    """
+    """.format(project_name=project_name)
+
     if enable_asan:
         cmake_lists_content = cmake_lists_content + """
 # Enable AddressSanitizer
@@ -121,6 +167,28 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU"
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${ASAN_FLAGS}")
 endif()
     """
+
+    if add_benchmark:
+        cmake_lists_content = cmake_lists_content + """
+# Fetch Google Benchmark
+FetchContent_Declare(
+  googlebenchmark
+  URL https://github.com/google/benchmark/archive/refs/tags/v1.6.1.zip
+)
+FetchContent_MakeAvailable(googlebenchmark)
+
+# Add benchmark executable
+add_executable(
+  benchmark_{project_name}
+  benchmarks/benchmark.cpp
+)
+
+# Link benchmark executable against benchmark library
+target_link_libraries(
+  benchmark_{project_name} benchmark::benchmark
+)
+    """.format(project_name=project_name)
+
     with open(os.path.join(project_dir, "CMakeLists.txt"), "w") as file:
         file.write(cmake_lists_content)
 
@@ -141,12 +209,13 @@ if __name__ == "__main__":
     parser.add_argument('project_name', type=str, help='The name of the project')
     parser.add_argument('--std', type=str, choices=['c++11', 'c++14', 'c++17', 'c++20'], default='c++11', help='The C++ standard version (c++11, c++14, c++17, c++20)')
     parser.add_argument('--path', type=str, default='.', help='The root path where the project will be created')
-    parser.add_argument('--enable-asan', dest='asan', action='store_true', help="Enable address sanitizer.")
+    parser.add_argument('--add-benchmark', dest='benchmark', action='store_true', help="Add Google Benchmark into the project")
+    parser.add_argument('--enable-asan', dest='asan', action='store_true', help="Enable address sanitizer")
 
     args = parser.parse_args()
 
     # Extract the C++ standard version number from the input string (e.g., "c++17" -> "17")
     cpp_standard = args.std.split('++')[-1]
 
-    create_cmake_project(args.path, args.project_name, cpp_standard, args.asan)
+    create_cmake_project(args.path, args.project_name, cpp_standard, args.benchmark, args.asan)
 
