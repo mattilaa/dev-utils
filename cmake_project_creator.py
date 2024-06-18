@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
-import os
 import argparse
-import subprocess
+import os
 
-def create_cmake_project(project_path, project_name, cpp_standard, add_benchmark, enable_asan):
+def create_cmake_project(project_path, project_name, cpp_standard, is_lib, add_benchmark, enable_asan):
     # Expand the user home directory symbol (~) to the full path
     project_path = os.path.expanduser(project_path)
     project_dir = os.path.join(project_path)
+    upper_project_name = project_name.upper()
 
     # Directory structure
     include_dir = os.path.join(project_dir, "include")
@@ -22,55 +22,70 @@ def create_cmake_project(project_path, project_name, cpp_standard, add_benchmark
     if add_benchmark:
         os.makedirs(benchmarks_dir, exist_ok=True)
 
-
-    # Create hello.h in include directory
+    # Create example header in include directory
     hello_h_content = """
-#ifndef HELLO_H
-#define HELLO_H
+#ifndef {upper_project_name}_H
+#define {upper_project_name}_H
 
 #include <iostream>
 
-static void hello()
-{
-    std::cout << "Hello, World!\\n";
-}
+namespace example
+{{
+    int add(int a, int b);
+}}
 
-#endif // HELLO_H
-    """
-    with open(os.path.join(include_dir, "hello.h"), "w") as file:
+#endif
+    """.format(upper_project_name=upper_project_name)
+
+    with open(os.path.join(include_dir, project_name + ".h"), "w") as file:
         file.write(hello_h_content)
 
-    # Create main.cpp in src directory
-    main_cpp_content = """
-#include "hello.h"
+    if is_lib:
+        # Create library cpp in src directory
+        mylib_cpp_content = """
+namespace example
+{{
+    int add(int a, int b)
+    {{
+        return a + b;
+    }}
+}}
+        """.format(project_name=project_name)
+        with open(os.path.join(src_dir, project_name + ".cpp"), "w") as file:
+            file.write(mylib_cpp_content)
+
+    else:
+        # Create main.cpp in src directory
+        main_cpp_content = """
+#include "{project_name}.h"
 
 int main(int argc, char* argv [])
-{
-    hello();
-}
-    """
-    with open(os.path.join(src_dir, "main.cpp"), "w") as file:
-        file.write(main_cpp_content)
+{{
+    std::cout << "Hello result: " << example::add(2, 4) << "\\n";
+}}
+        """.format(project_name=project_name)
+        with open(os.path.join(src_dir, "main.cpp"), "w") as file:
+            file.write(main_cpp_content)
 
     # Create test.cpp in tests directory
     test_cpp_content = """
 #include <gtest/gtest.h>
-#include "hello.h"
+#include "{project_name}.h"
 
 TEST(HelloTest, BasicAssertions)
-{
+{{
     // Expect two strings not to be equal.
     EXPECT_STRNE("hello", "world");
     // Expect equality.
     EXPECT_EQ(7 * 6, 42);
-}
+}}
 
 int main(int argc, char **argv)
-{
+{{
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
-}
-    """
+}}
+    """.format(project_name=project_name)
     with open(os.path.join(tests_dir, "test.cpp"), "w") as file:
         file.write(test_cpp_content)
 
@@ -82,28 +97,28 @@ int main(int argc, char **argv)
 
 // Example function to benchmark
 void ExampleFunction(std::vector<int>& data)
-{
+{{
     std::sort(data.begin(), data.end());
-}
+}}
 
 // Benchmark for the example function
 static void BM_ExampleFunction(benchmark::State& state)
-{
+{{
     // Setup code
     std::vector<int> data(state.range(0));
     std::generate(data.begin(), data.end(), std::rand);
 
     // Run the benchmark
     for(auto _ : state)
-    {
+    {{
         // We need to make a copy of the data for each iteration
         std::vector<int> data_copy = data;
         ExampleFunction(data_copy);
-    }
+    }}
 
     // Set the items processed per iteration
     state.SetItemsProcessed(state.iterations() * state.range(0));
-}
+}}
 
 // Register the function as a benchmark
 BENCHMARK(BM_ExampleFunction)->Range(8, 8<<10);
@@ -128,9 +143,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Add include directory
 include_directories(include)
 
-# Add the executable
+    """
+    if is_lib:
+        cmake_lists_content = cmake_lists_content + """
+# Library target
+add_library({project_name} src/{project_name}.cpp)
+        """.format(project_name=project_name)
+    else:
+        cmake_lists_content = cmake_lists_content + """
+# Executable target
 add_executable({project_name} src/main.cpp)
+        """.format(project_name=project_name)
 
+    cmake_lists_content = cmake_lists_content + """
 # Fetch GoogleTest
 include(FetchContent)
 FetchContent_Declare(
@@ -210,6 +235,7 @@ if __name__ == "__main__":
     )
     parser.add_argument('project_name', type=str, help='The name of the project')
     parser.add_argument('--std', type=str, choices=['c++11', 'c++14', 'c++17', 'c++20'], default='c++11', help='The C++ standard version (c++11, c++14, c++17, c++20)')
+    parser.add_argument('--lib', dest='lib', action='store_true', help="Create library project instead of program project")
     parser.add_argument('--path', type=str, default='.', help='The root path where the project will be created')
     parser.add_argument('--add-benchmark', dest='benchmark', action='store_true', help="Add Google Benchmark into the project")
     parser.add_argument('--enable-asan', dest='asan', action='store_true', help="Enable address sanitizer")
@@ -219,5 +245,5 @@ if __name__ == "__main__":
     # Extract the C++ standard version number from the input string (e.g., "c++17" -> "17")
     cpp_standard = args.std.split('++')[-1]
 
-    create_cmake_project(args.path, args.project_name, cpp_standard, args.benchmark, args.asan)
+    create_cmake_project(args.path, args.project_name, cpp_standard, args.lib, args.benchmark, args.asan)
 
