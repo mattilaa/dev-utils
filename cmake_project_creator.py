@@ -2,7 +2,7 @@ import os
 import argparse
 import subprocess
 
-def create_cmake_project(project_path, project_name, cpp_standard):
+def create_cmake_project(project_path, project_name, cpp_standard, enable_asan):
     # Expand the user home directory symbol (~) to the full path
     project_path = os.path.expanduser(project_path)
     project_dir = os.path.join(project_path)
@@ -110,6 +110,17 @@ target_link_libraries(
 include(GoogleTest)
 gtest_discover_tests(test_{project_name})
     """
+    if enable_asan:
+        cmake_lists_content = cmake_lists_content + """
+# Enable AddressSanitizer
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    set(ASAN_FLAGS "-fsanitize=address -fno-omit-frame-pointer")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ASAN_FLAGS}")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${ASAN_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${ASAN_FLAGS}")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${ASAN_FLAGS}")
+endif()
+    """
     with open(os.path.join(project_dir, "CMakeLists.txt"), "w") as file:
         file.write(cmake_lists_content)
 
@@ -128,13 +139,14 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('project_name', type=str, help='The name of the project')
-    parser.add_argument('--std', type=str, choices=['c++11', 'c++14', 'c++17', 'c++20'], required=True, help='The C++ standard version (c++11, c++14, c++17, c++20)')
+    parser.add_argument('--std', type=str, choices=['c++11', 'c++14', 'c++17', 'c++20'], default='c++11', help='The C++ standard version (c++11, c++14, c++17, c++20)')
     parser.add_argument('--path', type=str, default='.', help='The root path where the project will be created')
+    parser.add_argument('--enable-asan', dest='asan', action='store_true', help="Enable address sanitizer.")
 
     args = parser.parse_args()
 
     # Extract the C++ standard version number from the input string (e.g., "c++17" -> "17")
     cpp_standard = args.std.split('++')[-1]
 
-    create_cmake_project(args.path, args.project_name, cpp_standard)
+    create_cmake_project(args.path, args.project_name, cpp_standard, args.asan)
 
