@@ -66,6 +66,19 @@ int main(int argc, char* argv [])
         """.format(project_name=project_name)
         with open(os.path.join(src_dir, "main.cpp"), "w") as file:
             file.write(main_cpp_content)
+        example_cpp_content = """
+#include "{project_name}.h"
+
+namespace example
+{{
+    int add(int a, int b)
+    {{
+        return a * b;
+    }}
+}}
+        """.format(project_name=project_name)
+        with open(os.path.join(src_dir, project_name + ".cpp"), "w") as file:
+            file.write(example_cpp_content)
 
     # Create test.cpp in tests directory
     test_cpp_content = """
@@ -152,7 +165,7 @@ add_library({project_name} src/{project_name}.cpp)
     else:
         cmake_lists_content = cmake_lists_content + """
 # Executable target
-add_executable({project_name} src/main.cpp)
+add_executable({project_name} src/main.cpp include/{project_name}.h src/{project_name}.cpp)
         """.format(project_name=project_name)
 
     cmake_lists_content = cmake_lists_content + """
