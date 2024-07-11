@@ -1,0 +1,16 @@
+Language:        Cpp
+BasedOnStyle:    Google
+IndentWidth:     4
+TabWidth:        4
+UseTab:          Never
+BreakBeforeBraces: Allman
+AllowShortIfStatementsOnASingleLine: false
+ColumnLimit:     80
+PointerAlignment: Left
+SpaceAfterControlStatementKeyword: true
+IndentPPDirectives: AfterHash
+ConstructorInitializerIndentWidth: 2
+ContinuationIndentWidth: 2
+SpaceBeforeParens: Custom
+SpaceBeforeParensOptions:
+  AfterControlStatements: false
