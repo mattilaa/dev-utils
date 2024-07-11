@@ -31,7 +31,7 @@ def create_cmake_project(
         os.makedirs(benchmarks_dir, exist_ok=True)
 
     # Create example header in include directory
-    hello_h_content = """#ifndef {upper_project_name}_H
+    hello_h_content = f"""#ifndef {upper_project_name}_H
 #define {upper_project_name}_H
 
 #include <iostream>
@@ -42,7 +42,7 @@ namespace example
 }}
 
 #endif
-""".format(upper_project_name=upper_project_name)
+"""
 
     with open(os.path.join(include_dir, project_name + ".h"), "w") as file:
         file.write(hello_h_content)
@@ -58,21 +58,22 @@ namespace example
     }}
 }}
 """
+
         with open(os.path.join(src_dir, project_name + ".cpp"), "w") as file:
             file.write(mylib_cpp_content)
 
     else:
         # Create main.cpp in src directory
-        main_cpp_content = """#include "{project_name}.h"
+        main_cpp_content = f"""#include "{project_name}.h"
 
 int main(int argc, char* argv [])
 {{
     std::cout << "Hello result: " << example::add(2, 4) << "\\n";
 }}
-""".format(project_name=project_name)
+"""
         with open(os.path.join(src_dir, "main.cpp"), "w") as file:
             file.write(main_cpp_content)
-        example_cpp_content = """#include "{project_name}.h"
+        example_cpp_content = f"""#include "{project_name}.h"
 
 namespace example
 {{
@@ -81,12 +82,13 @@ namespace example
         return a * b;
     }}
 }}
-""".format(project_name=project_name)
+"""
+
         with open(os.path.join(src_dir, project_name + ".cpp"), "w") as file:
             file.write(example_cpp_content)
 
     # Create test.cpp in tests directory
-    test_cpp_content = """#include <gtest/gtest.h>
+    test_cpp_content = f"""#include <gtest/gtest.h>
 #include "{project_name}.h"
 
 TEST(HelloTest, BasicAssertions)
@@ -102,7 +104,8 @@ int main(int argc, char **argv)
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }}
-""".format(project_name=project_name)
+"""
+
     with open(os.path.join(tests_dir, "test.cpp"), "w") as file:
         file.write(test_cpp_content)
 
@@ -141,6 +144,7 @@ BENCHMARK(BM_ExampleFunction)->Range(8, 8<<10);
 
 BENCHMARK_MAIN();
 """
+
         with open(os.path.join(benchmarks_dir, "benchmark.cpp"), "w") as file:
             file.write(benchmark_cpp_content)
 
@@ -158,18 +162,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Add include directory
 include_directories(include)
 """
+
     if is_lib:
-        cmake_lists_content = cmake_lists_content + """
+        cmake_lists_content = cmake_lists_content + f"""
 # Library target
 add_library({project_name} src/{project_name}.cpp)
-""".format(project_name=project_name)
+"""
     else:
-        cmake_lists_content = cmake_lists_content + """
+        cmake_lists_content = cmake_lists_content + f"""
 # Executable target
 add_executable({project_name} src/main.cpp include/{project_name}.h src/{project_name}.cpp)
-""".format(project_name=project_name)
+"""
 
-    cmake_lists_content = cmake_lists_content + """
+    cmake_lists_content = cmake_lists_content + f"""
 # Fetch GoogleTest
 include(FetchContent)
 FetchContent_Declare(
@@ -195,7 +200,7 @@ target_link_libraries(
 
 include(GoogleTest)
 gtest_discover_tests(test_{project_name})
-""".format(project_name=project_name)
+"""
 
     if enable_asan:
         cmake_lists_content = cmake_lists_content + """
@@ -210,7 +215,7 @@ endif()
 """
 
     if add_benchmark:
-        cmake_lists_content = cmake_lists_content + """
+        cmake_lists_content = cmake_lists_content + f"""
 # Fetch Google Benchmark
 FetchContent_Declare(
   googlebenchmark
@@ -228,8 +233,7 @@ add_executable(
 target_link_libraries(
   benchmark_{project_name} benchmark::benchmark
 )
-""".format(project_name=project_name)
-    cmake_lists_content = cmake_lists_content + "\n"
+"""
 
     with open(os.path.join(project_dir, "CMakeLists.txt"), "w") as file:
         file.write(cmake_lists_content)
