@@ -4,34 +4,106 @@ import argparse
 import os
 
 
-def create_cmake_project(
-        project_path,
-        project_name,
-        cpp_standard,
-        is_lib,
-        add_benchmark,
-        enable_asan,
-        create_format):
-    # Expand the user home directory symbol (~) to the full path
-    project_path = os.path.expanduser(project_path)
-    project_dir = os.path.join(project_path)
-    upper_project_name = project_name.upper()
+class CmakeProjectCreator:
+    def __init__(self, args):
+        self.params = args
 
-    # Directory structure
-    include_dir = os.path.join(project_dir, "include")
-    src_dir = os.path.join(project_dir, "src")
-    tests_dir = os.path.join(project_dir, "tests")
-    benchmarks_dir = os.path.join(project_dir, "benchmarks")
+        # Strip c++ prefix from standard
+        self.params.std = args.std.split('++')[-1]
 
-    # Create directories
-    os.makedirs(include_dir, exist_ok=True)
-    os.makedirs(src_dir, exist_ok=True)
-    os.makedirs(tests_dir, exist_ok=True)
-    if add_benchmark:
-        os.makedirs(benchmarks_dir, exist_ok=True)
+        # Directory structure
+        self.dirs = dict()
+        self.dirs['project_path'] = os.path.expanduser(args.path)
+        self.dirs['include_dir'] = os.path.join(args.path, "include")
+        self.dirs['src_dir'] = os.path.join(args.path, "src")
+        self.dirs['tests_dir'] = os.path.join(args.path, "tests")
+        self.dirs['benchmarks_dir'] = os.path.join(args.path, "benchmarks")
 
-    # Create example header in include directory
-    hello_h_content = f"""#ifndef {upper_project_name}_H
+    def create_project(self):
+        """ Create project directories and file contents """
+
+        self.__create_project_dirs()
+        self.__create_contents()
+        print(self.params)
+
+    def __create_project_dirs(self):
+        os.makedirs(self.dirs['include_dir'], exist_ok=True)
+        os.makedirs(self.dirs['src_dir'], exist_ok=True)
+        os.makedirs(self.dirs['tests_dir'], exist_ok=True)
+        if self.params.benchmark is True:
+            os.makedirs(self.dirs['benchmarks_dir'], exist_ok=True)
+
+    def __create_contents(self):
+        # Create full file paths
+        example_h = (
+            os.path.join(self.dirs['include_dir'], self.params.project_name +
+                         ".h")
+        )
+        example_cpp = (
+            os.path.join(self.dirs['src_dir'], self.params.project_name +
+                         ".cpp")
+        )
+        main_cpp = (
+            os.path.join(self.dirs['src_dir'], "main.cpp")
+        )
+        test_cpp = (
+            os.path.join(self.dirs['tests_dir'], "test_" +
+                         self.params.project_name + ".cpp")
+        )
+        benchmark_cpp = (
+            os.path.join(self.dirs['tests_dir'], "benchmark_" +
+                         self.params.project_name + ".cpp")
+        )
+        cmakelists = (
+            os.path.join(self.dirs['project_path'], "CMakeLists.txt")
+        )
+        clang_format = (
+            os.path.join(self.dirs['project_path'], ".clang_format")
+        )
+        readme = (
+            os.path.join(self.dirs['project_path'], "README.md")
+        )
+
+        contents = dict()
+
+        # Create example.h
+        contents[example_h] = self.__create_exmaple_h()
+
+        # Create main if project is not library
+        if not self.params.lib:
+            contents[main_cpp] = self.__create_main_cpp()
+
+        # Create example.cpp
+        contents[example_cpp] = self.__create_example_cpp()
+
+        # Create test.cpp
+        contents[test_cpp] = self.__create_test_cpp()
+
+        # Create benchmark.cpp
+        if self.params.benchmark is True:
+            contents[benchmark_cpp] = self.__create_benchmark_cpp()
+
+        # Create CMakeLists.txt
+        contents[cmakelists] = self.__create_cmakelists()
+
+        # Create .clang_format
+        if self.params.create_format is True:
+            contents[clang_format] = self.__create_format()
+
+        # Create README.rd
+        contents[readme] = self.__create_readme()
+
+        # Write files
+        for path, content in contents.items():
+            with open(path, "w") as file:
+                file.write(content)
+        print(f"""CMake project '{self.params.project_name}' \
+ created successfully in '{self.params.path}'!""")
+
+    # Private methods
+    def __create_exmaple_h(self):
+        upper_project_name = self.params.project_name.upper()
+        content = f"""#ifndef {upper_project_name}_H
 #define {upper_project_name}_H
 
 #include <iostream>
@@ -43,13 +115,10 @@ namespace example
 
 #endif
 """
+        return content
 
-    with open(os.path.join(include_dir, project_name + ".h"), "w") as file:
-        file.write(hello_h_content)
-
-    if is_lib:
-        # Create library cpp in src directory
-        mylib_cpp_content = """
+    def __create_example_cpp(self):
+        content = f"""#include "{self.params.project_name}.h"
 namespace example
 {{
     int add(int a, int b)
@@ -58,38 +127,21 @@ namespace example
     }}
 }}
 """
+        return content
 
-        with open(os.path.join(src_dir, project_name + ".cpp"), "w") as file:
-            file.write(mylib_cpp_content)
-
-    else:
-        # Create main.cpp in src directory
-        main_cpp_content = f"""#include "{project_name}.h"
+    def __create_main_cpp(self):
+        content = f"""#include "{self.params.project_name}.h"
 
 int main(int argc, char* argv [])
 {{
     std::cout << "Hello result: " << example::add(2, 4) << "\\n";
 }}
 """
-        with open(os.path.join(src_dir, "main.cpp"), "w") as file:
-            file.write(main_cpp_content)
-        example_cpp_content = f"""#include "{project_name}.h"
+        return content
 
-namespace example
-{{
-    int add(int a, int b)
-    {{
-        return a * b;
-    }}
-}}
-"""
-
-        with open(os.path.join(src_dir, project_name + ".cpp"), "w") as file:
-            file.write(example_cpp_content)
-
-    # Create test.cpp in tests directory
-    test_cpp_content = f"""#include <gtest/gtest.h>
-#include "{project_name}.h"
+    def __create_test_cpp(self):
+        content = f"""#include <gtest/gtest.h>
+#include "{self.params.project_name}.h"
 
 TEST(HelloTest, BasicAssertions)
 {{
@@ -105,12 +157,10 @@ int main(int argc, char **argv)
     return RUN_ALL_TESTS();
 }}
 """
+        return content
 
-    with open(os.path.join(tests_dir, "test.cpp"), "w") as file:
-        file.write(test_cpp_content)
-
-    if add_benchmark:
-        benchmark_cpp_content = """#include <benchmark/benchmark.h>
+    def __create_benchmark_cpp(self):
+        content = """#include <benchmark/benchmark.h>
 #include <vector>
 #include <algorithm>
 
@@ -144,42 +194,46 @@ BENCHMARK(BM_ExampleFunction)->Range(8, 8<<10);
 
 BENCHMARK_MAIN();
 """
+        return content
 
-        with open(os.path.join(benchmarks_dir, "benchmark.cpp"), "w") as file:
-            file.write(benchmark_cpp_content)
-
-    # Create CMakeLists.txt in the root directory
-    cmake_lists_content = f"""cmake_minimum_required(VERSION 3.12)
-project({project_name})
+    def __create_cmakelists(self):
+        content = f"""cmake_minimum_required(VERSION 3.12)
+project({self.params.project_name})
 
 # Create compile_commands.json in build directory
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Set C++ standard
-set(CMAKE_CXX_STANDARD {cpp_standard})
+set(CMAKE_CXX_STANDARD {self.params.std})
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Add include directory
 include_directories(include)
 """
 
-    if is_lib:
-        cmake_lists_content = cmake_lists_content + f"""
+        if self.params.lib:
+            content = content + f"""
 # Library target
-add_library({project_name} src/{project_name}.cpp)
+add_library({self.params.project_name}
+    src/{self.params.project_name}.cpp
+)
 """
-    else:
-        cmake_lists_content = cmake_lists_content + f"""
+        else:
+            content = content + f"""
 # Executable target
-add_executable({project_name} src/main.cpp include/{project_name}.h src/{project_name}.cpp)
+add_executable({self.params.project_name}
+    src/main.cpp
+    include/{self.params.project_name}.h
+    src/{self.params.project_name}.cpp
+)
 """
 
-    cmake_lists_content = cmake_lists_content + f"""
+        content = content + f"""
 # Fetch GoogleTest
 include(FetchContent)
 FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/refs/tags/release-1.12.1.zip
+    googletest
+    URL https://github.com/google/googletest/archive/refs/tags/release-1.12.1.zip
 )
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
@@ -189,21 +243,21 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 
 # Add test executable
-add_executable(
-  test_{project_name}
-  tests/test.cpp
+add_executable(test_{self.params.project_name}
+    tests/test_{self.params.project_name}.cpp
 )
 
 # Link test executable against gtest & gtest_main
-target_link_libraries(
-  test_{project_name} gtest_main)
+target_link_libraries(test_{self.params.project_name}
+    gtest_main
+)
 
 include(GoogleTest)
-gtest_discover_tests(test_{project_name})
+gtest_discover_tests(test_{self.params.project_name})
 """
 
-    if enable_asan:
-        cmake_lists_content = cmake_lists_content + """
+        if self.params.asan is True:
+            content = content + """
 # Enable AddressSanitizer
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     set(ASAN_FLAGS "-fsanitize=address -fno-omit-frame-pointer")
@@ -214,32 +268,30 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU"
 endif()
 """
 
-    if add_benchmark:
-        cmake_lists_content = cmake_lists_content + f"""
+        if self.params.benchmark is True:
+            content = content + f"""
 # Fetch Google Benchmark
 FetchContent_Declare(
-  googlebenchmark
-  URL https://github.com/google/benchmark/archive/refs/tags/v1.6.1.zip
+    googlebenchmark
+    URL https://github.com/google/benchmark/archive/refs/tags/v1.6.1.zip
 )
 FetchContent_MakeAvailable(googlebenchmark)
 
 # Add benchmark executable
 add_executable(
-  benchmark_{project_name}
-  benchmarks/benchmark.cpp
+    benchmark_{self.params.project_name}
+    benchmarks/benchmark.cpp
 )
 
 # Link benchmark executable against benchmark library
 target_link_libraries(
-  benchmark_{project_name} benchmark::benchmark
+    benchmark_{self.params.project_name} benchmark::benchmark
 )
 """
+        return content
 
-    with open(os.path.join(project_dir, "CMakeLists.txt"), "w") as file:
-        file.write(cmake_lists_content)
-
-    if create_format:
-        clang_format_contents = """Language:        Cpp
+    def __create_format(self):
+        content = """Language:        Cpp
 BasedOnStyle:    Google
 IndentWidth:     4
 TabWidth:        4
@@ -256,16 +308,15 @@ SpaceBeforeParens: Custom
 SpaceBeforeParensOptions:
   AfterControlStatements: false
 """
+        return content
 
-        with open(os.path.join(project_dir, ".clang-format"), "w") as file:
-            file.write(clang_format_contents)
+    def __create_readme(self):
+        content = f"""{self.params.project_name}
 
-    # Create README.md in the root directory
-    readme_content = """Empty project"""
-    with open(os.path.join(project_dir, "README.rd"), "w") as file:
-        file.write(readme_content)
-
-    print(f"CMake project '{project_name}' created successfully in '{project_path}'!")
+## About
+Add description here
+"""
+        return content
 
 
 if __name__ == "__main__":
@@ -313,16 +364,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Extract the C++ standard version number from the input string
-    # (e.g., "c++17" -> "17")
-    cpp_standard = args.std.split('++')[-1]
-
-    create_cmake_project(
-        args.path,
-        args.project_name,
-        cpp_standard,
-        args.lib,
-        args.benchmark,
-        args.asan,
-        args.create_format,
-    )
+    cr = CmakeProjectCreator(args)
+    cr.create_project()
