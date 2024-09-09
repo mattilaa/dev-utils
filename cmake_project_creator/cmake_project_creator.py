@@ -51,7 +51,7 @@ class CmakeProjectCreator:
                          self.params.project_name + ".cpp")
         )
         benchmark_cpp = (
-            os.path.join(self.dirs['tests_dir'], "benchmark_" +
+            os.path.join(self.dirs['benchmarks_dir'], "benchmark_" +
                          self.params.project_name + ".cpp")
         )
         cmakelists = (
@@ -280,7 +280,7 @@ FetchContent_MakeAvailable(googlebenchmark)
 # Add benchmark executable
 add_executable(
     benchmark_{self.params.project_name}
-    benchmarks/benchmark.cpp
+    {self.dirs['benchmarks_dir']}/benchmark_{self.params.project_name}.cpp
 )
 
 # Link benchmark executable against benchmark library
