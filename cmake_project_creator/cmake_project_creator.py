@@ -58,7 +58,7 @@ class CmakeProjectCreator:
             os.path.join(self.dirs['project_path'], "CMakeLists.txt")
         )
         clang_format = (
-            os.path.join(self.dirs['project_path'], ".clang_format")
+            os.path.join(self.dirs['project_path'], ".clang-format")
         )
         readme = (
             os.path.join(self.dirs['project_path'], "README.md")
