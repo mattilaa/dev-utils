@@ -302,8 +302,8 @@ ColumnLimit:     80
 PointerAlignment: Left
 SpaceAfterControlStatementKeyword: true
 IndentPPDirectives: AfterHash
-ConstructorInitializerIndentWidth: 2
-ContinuationIndentWidth: 2
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
 SpaceBeforeParens: Custom
 SpaceBeforeParensOptions:
   AfterControlStatements: false
