@@ -38,13 +38,20 @@ if __name__ == "__main__":
         description='Simple build utility for C/C++',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("cmd", type=str, help="Compiler command")
+    parser.add_argument("cmd", type=str, help="Compiler command. Example: \"g++ main.cpp\"")
     parser.add_argument(
             "-c",
             dest="compile_commands",
             action="store_true",
             default=True,
             help="Create compile_commands.json file for build",
+        )
+    parser.add_argument(
+            "-v",
+            dest="verbose",
+            action="store_true",
+            default=False,
+            help="Verbose mode. Outputs the stdout result of the build command",
         )
     args = parser.parse_args()
 
@@ -54,7 +61,8 @@ if __name__ == "__main__":
     if not result.returncode == 0:
         print(result.stderr)
         exit(result.returncode)
-    print(result.stdout)
+    if args.verbose:
+        print(result.stdout)
 
     if args.compile_commands:
         create_compile_commands_json(cmd_args)
