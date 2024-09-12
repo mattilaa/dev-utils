@@ -5,7 +5,7 @@ import shutil
 import subprocess
 
 
-def create_compile_commands_json(cmd_args):
+def create_compile_commands_json(cmd_args, append):
     json_file = 'compile_commands.json'
     current_dir = os.getcwd()
     compiler_cmd = cmd_args[0]
@@ -27,7 +27,18 @@ def create_compile_commands_json(cmd_args):
         out['output'] = os.path.join(current_dir, 'a.out')
 
     dump = []
-    dump.insert(0, out)
+    if append:
+        try:
+            with open(json_file, 'r') as file:
+                dump.append(json.load(file)[0])
+        except FileNotFoundError:
+            # File doesn't exist, so we'll just pass silently
+            pass
+        except json.JSONDecodeError:
+            # In case the file exists but isn't valid JSON
+            print(f"Error: {json_file} is not a valid JSON file.")
+            exit(1)
+
     with open(json_file, 'w') as file:
         json.dump(dump, file, indent=2)
         file.write('\n')
@@ -47,6 +58,13 @@ if __name__ == "__main__":
             help="Create compile_commands.json file for build",
         )
     parser.add_argument(
+            "-ca",
+            dest="append",
+            action="store_true",
+            default=False,
+            help="Append output to existing compile_commands.json",
+        )
+    parser.add_argument(
             "-v",
             dest="verbose",
             action="store_true",
@@ -59,10 +77,12 @@ if __name__ == "__main__":
     result = subprocess.run(cmd_args, capture_output=True, text=True)
 
     if not result.returncode == 0:
-        print(result.stderr)
+        if args.verbose:
+            print(result.stderr)
         exit(result.returncode)
     if args.verbose:
-        print(result.stdout)
+        if result.stdout:  # Don't print empty string (contains extra line feed)
+            print(result.stdout)
 
     if args.compile_commands:
-        create_compile_commands_json(cmd_args)
+        create_compile_commands_json(cmd_args, args.append)
